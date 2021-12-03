@@ -3,3 +3,4 @@
 *~
 *.cabal
 stack.yaml.lock
+.ionide
