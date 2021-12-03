@@ -1,12 +1,22 @@
 module Advent.Parsing
-  ( parseLinesFromDay
+  ( Parser
+  , parseLinesFromDay
+  , testParser
   , pInt
+  , pString
+  , pDigit
+  , pChar
+  , (.>>.)
+  , (.>>)
+  , (>>.)
   ) where
 
 import           Text.Megaparsec            (ParseErrorBundle, Parsec,
-                                             runParser, runParserT)
-import           Text.Megaparsec.Char       ()
+                                             runParser, runParserT, many)
+import           Text.Megaparsec.Char       (string, digitChar, char, space)
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec as M
+import qualified Data.Char as C
 
 type Parser = Parsec () String
 
@@ -41,6 +51,32 @@ parseLinesFromDay file p = do
   (Right parsedResult) <- sequence <$> fmap (fmap (parseString p)) (readLinesForDay file)
   return parsedResult
 
+testParser :: (Show a) => Parser a -> String -> IO ()
+testParser p input = do
+  let test = parseString p input
+  putStrLn $ show test
+
 -- Parsing helpers
 pInt :: Parser Int
 pInt = L.decimal
+
+pString :: String -> Parser String
+pString = string
+
+pDigit :: Parser Int
+pDigit = C.digitToInt <$> digitChar
+
+pChar :: Char -> Parser Char
+pChar = char
+
+(.>>.) :: Parser a -> Parser b -> Parser (a, b)
+(.>>.) pA  pB = do
+  a <- pA
+  b <- pB
+  return (a, b)
+
+(.>>) :: Parser a -> Parser b -> Parser a
+(.>>) a b = fst <$> a .>>. b
+
+(>>.) :: Parser a -> Parser b -> Parser b
+(>>.) a b = snd <$> a .>>. b
