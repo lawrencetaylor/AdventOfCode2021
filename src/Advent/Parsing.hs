@@ -1,11 +1,16 @@
 module Advent.Parsing
   ( Parser
   , parseLinesFromDay
+  , parseFromDay
+  , readLinesForDay
   , testParser
   , pInt
   , pString
   , pDigit
   , pChar
+  , pNewLine
+  , pEof
+  , pMany
   , (.>>.)
   , (.>>)
   , (>>.)
@@ -13,7 +18,7 @@ module Advent.Parsing
 
 import           Text.Megaparsec            (ParseErrorBundle, Parsec,
                                              runParser, runParserT, many)
-import           Text.Megaparsec.Char       (string, digitChar, char, space)
+import           Text.Megaparsec.Char       (string, digitChar, char, space, newline)
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec as M
 import qualified Data.Char as C
@@ -46,10 +51,19 @@ parseString p = runParser p ""
 parseFromFile :: Parser a -> String -> IO (Either ParseError a)
 parseFromFile p file = parseString p <$> readFile file
 
+parseFromDay :: Int -> Parser a -> IO a
+parseFromDay day p = do 
+  maybeResult <- parseFromFile p (fileNameForDay day)
+  return $ case maybeResult of
+    Right parseResults -> parseResults
+    Left parseError -> error $ show parseError
+
 parseLinesFromDay :: Int -> Parser a -> IO [a]
 parseLinesFromDay file p = do 
-  (Right parsedResult) <- sequence <$> fmap (fmap (parseString p)) (readLinesForDay file)
-  return parsedResult
+  maybeResult <- sequence <$> fmap (fmap (parseString p)) (readLinesForDay file)
+  return $ case maybeResult of
+    Right parseResults -> parseResults
+    Left parseError -> error $ show parseError
 
 testParser :: (Show a) => Parser a -> String -> IO ()
 testParser p input = do
@@ -68,6 +82,15 @@ pDigit = C.digitToInt <$> digitChar
 
 pChar :: Char -> Parser Char
 pChar = char
+
+pNewLine :: Parser ()
+pNewLine = newline *> pure ()
+
+pEof :: Parser ()
+pEof = M.eof *> pure ()
+
+pMany :: Parser a -> Parser [a]
+pMany = many
 
 (.>>.) :: Parser a -> Parser b -> Parser (a, b)
 (.>>.) pA  pB = do
