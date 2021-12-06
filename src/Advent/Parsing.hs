@@ -13,6 +13,7 @@ module Advent.Parsing
   , pMany
   , pSepBy
   , pComma
+  , pOneOrMore
   , (.>>.)
   , (.>>)
   , (>>.)
@@ -99,6 +100,9 @@ pSepBy = M.sepBy
 
 pComma :: Parser ()
 pComma = char ',' *> pure ()
+
+pOneOrMore :: Parser a -> Parser [a]
+pOneOrMore = M.some 
 
 (.>>.) :: Parser a -> Parser b -> Parser (a, b)
 (.>>.) pA  pB = do

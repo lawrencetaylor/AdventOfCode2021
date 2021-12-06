@@ -1,115 +1,96 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Day04 where
 
 import           Advent.Parsing
 import           Control.Applicative  ((<|>))
+import qualified Data.Foldable        as Set
 import           Data.Map             (Map)
 import qualified Data.Map             as Map
+import           Data.Set             (Set)
+import qualified Data.Set             as Set
 import qualified Text.Megaparsec      as T
 import qualified Text.Megaparsec.Char as T
-import Data.Set(Set)
-import qualified Data.Set as Set
-import qualified Data.Foldable as Set
+
+data Card = Card {
+  i       :: Int,
+  numbers :: Map Int (Int,Int),
+  seen    :: Set (Int, Int)
+} deriving (Show, Eq)
 
 type Game = ([Int], [Card], [Card])
 
 pBingo :: Parser Game
 pBingo = do
-  x <- T.sepBy pInt (pChar ',')
+  let pCardNumber = pInt <|> pOneOrMore ( pChar ' ') >>. pInt
+  let pCardLine = T.some pCardNumber .>> (pNewLine <|> pEof)
+  let pCard = T.some pCardLine
+  let pCards = T.sepBy pCard pNewLine
+  x <- pSepBy pInt (pChar ',')
   _ <- T.newline
   _ <- T.newline
   z <- pCards
-  let grids = fmap(\(grid, i) -> createCard i grid) $ zip z [0..]
+  let grids = (\(grid, i) -> createCard i grid) <$> zip z [0..]
   return (x, grids, [])
-
-data Card = Card {
-  i :: Int,
-  numbers :: Map Int (Int,Int),
-  seen    :: Set (Int, Int)
-} deriving (Show, Eq)
 
 createCard :: Int -> [[Int]] -> Card
 createCard i lines = Card i grid seen
   where
-    grid = toPositions lines
+    grid = Map.fromList $
+            concat $ 
+            zipWith (\y xs -> zipWith (\x v -> (v,(x,y))) [0..] xs) [0..] lines
     n = length $ head lines
     seen = Set.empty
 
 mark :: Int -> Card -> Card
-mark n card = 
+mark n card =
   case  (Map.!?) (numbers card) n of
     Just (x,y) -> card { seen = Set.insert (x,y) (seen card) }
-    Nothing -> card
+    Nothing    -> card
 
 checkCell ::  Card -> (Int, Int) -> Bool
-checkCell card position  = Set.member position (seen card) 
-
-checkRow :: Card -> Int -> Bool
-checkRow card y  = and $ check <$> [(x, y) | x <- [0..4]]
-  where
-    check = checkCell card
-
-checkRows :: Card -> Bool
-checkRows card = or $ checkRow card <$> [0..4]
-
-checkCol :: Card -> Int -> Bool
-checkCol card x  = and $ check <$> [(x, y) | y <- [0..4]]
-  where
-    check = checkCell card
-
-checkCols :: Card -> Bool
-checkCols card = or $ checkCol card <$> [0..4]
+checkCell card position  = Set.member position (seen card)
 
 checkCard :: Card -> Bool
-checkCard card = checkRows card || checkCols card
+checkCard card = checkRows || checkCols
+  where
+    checkCell position  = Set.member position (seen card)
+    checkRow y  = and $ checkCell <$> [(x, y) | x <- [0..4]]
+    checkCol x  = and $ checkCell <$> [(x, y) | y <- [0..4]]
+    checkRows = or $ checkRow <$> [0..4]
+    checkCols = or $ checkCol <$> [0..4]
 
-pCardNumber = pInt <|> (T.some $ pChar ' ') >>. pInt
-pCardLine = T.some pCardNumber .>> (pNewLine <|> T.eof)
-pCard = T.some pCardLine
-pCards = T.sepBy pCard pNewLine
-
-toPositions :: [[Int]] -> Map Int (Int,Int)
-toPositions lines = Map.fromList $ concat $ zipWith (\y xs -> zipWith (\x v -> (v,(x,y))) [0..] xs) [0..] lines
-
-initialiseGrid :: Int -> Map (Int, Int) Bool
-initialiseGrid n = Map.fromList [ ((x,y), False) | x <- [0..n-1], y <- [0..n-1] ]
-
-play :: Game -> (Int, Card)
-play (x:xs, cards, []) = 
+playToFirstWinner :: Game -> (Int, Card)
+playToFirstWinner (x:xs, cards, _) =
   case filter checkCard newCards of
-    [] -> play (xs, newCards, [])
+    []       -> playToFirstWinner (xs, newCards, [])
     [winner] -> (x, winner)
-  where 
+    _ -> error "Multiple winners"
+  where
     markWithX = mark x
-    newCards = markWithX <$> cards 
+    newCards = markWithX <$> cards
 
-
-play2 :: Game -> (Int, Card)
-play2 (x:xs, cards, winners) = case (newWinnersL == cardsL) of
-  True -> (x, lastWinner)
-  False -> play2 (xs, newCards, newWinners)
-  where 
+playToLastWinner :: Game -> (Int, Card)
+playToLastWinner (x:xs, cards, winners) = 
+    if newWinnersL == cardsL
+    then (x, lastWinner)
+    else playToLastWinner (xs, newCards, newWinners)
+  where
     markWithX = mark x
-    newCards = markWithX <$> cards 
+    newCards = markWithX <$> cards
     newWinners = filter checkCard newCards
     newWinnersL = length newWinners
     cardsL = length cards
-    isExistingWinner card = any (\c -> (i c) == (i card)) winners 
-    [lastWinner] = filter (not . isExistingWinner) newWinners
-    
-    
+    isExistingWinner card = any (\c -> i c == i card) winners
+    lastWinner = head $ filter (not . isExistingWinner) newWinners
 
-unmarked :: Card -> [Int]
-unmarked card = [ x | (x,y) <- Map.toList $ numbers card, not $ checkCell card y ]
+score :: (Int, Card) -> Int
+score (lastCalled, card) = lastCalled * sum unmarked
+  where
+    unmarked = [ x | (x,y) <- Map.toList $ numbers card
+                   , not $ checkCell card y ]
 
 main :: IO ()
 main = do
-  input <- parseFromDay 7 pBingo
-  -- let  (x, [_,_,c3], []) = playN 12 input
-  -- putStrLn $ show $ checkCell c3 (0,4)
-  let (last, winner) = play input
-  putStrLn $ show $ last * (sum $ unmarked winner)
-
-  let (last2, winner2) = play2 input
-  putStrLn $ show $ last2 * (sum $ unmarked winner2)
-  -- putStrLn $ "Part 1: " ++ show (play input)
-  -- putStrLn $ "Part 2: " ++ show (length $ filter i:L
+  input <- parseFromDay 4 pBingo
+  putStrLn $ "Part 1: " ++ show (score $ playToFirstWinner input)
+  putStrLn $ "Part 2: " ++ show (score $ playToLastWinner input)
