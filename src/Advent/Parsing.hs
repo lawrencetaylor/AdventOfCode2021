@@ -11,6 +11,8 @@ module Advent.Parsing
   , pNewLine
   , pEof
   , pMany
+  , pSepBy
+  , pComma
   , (.>>.)
   , (.>>)
   , (>>.)
@@ -91,6 +93,12 @@ pEof = M.eof *> pure ()
 
 pMany :: Parser a -> Parser [a]
 pMany = many
+
+pSepBy :: Parser a -> Parser b -> Parser [a]
+pSepBy = M.sepBy
+
+pComma :: Parser ()
+pComma = char ',' *> pure ()
 
 (.>>.) :: Parser a -> Parser b -> Parser (a, b)
 (.>>.) pA  pB = do
