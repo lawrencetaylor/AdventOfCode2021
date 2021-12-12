@@ -14,6 +14,9 @@ module Advent.Parsing
   , pSepBy
   , pComma
   , pOneOrMore
+  , pBetween
+  , parseString
+  , pLetter
   , (.>>.)
   , (.>>)
   , (>>.)
@@ -21,7 +24,7 @@ module Advent.Parsing
 
 import           Text.Megaparsec            (ParseErrorBundle, Parsec,
                                              runParser, runParserT, many)
-import           Text.Megaparsec.Char       (string, digitChar, char, space, newline)
+import           Text.Megaparsec.Char       (string, letterChar, digitChar, char, space, newline)
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec as M
 import qualified Data.Char as C
@@ -103,6 +106,12 @@ pComma = char ',' *> pure ()
 
 pOneOrMore :: Parser a -> Parser [a]
 pOneOrMore = M.some 
+
+pBetween :: Parser a -> Parser c -> Parser b -> Parser b
+pBetween = M.between
+
+pLetter :: Parser Char
+pLetter = letterChar 
 
 (.>>.) :: Parser a -> Parser b -> Parser (a, b)
 (.>>.) pA  pB = do
